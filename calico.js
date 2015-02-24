@@ -13,11 +13,13 @@
     'name': 'name',
     'love': 'love',
     'theme': 'theme',
+    'hello': 'hello',
     'ready?': 'ready',
     'champ?': 'whois',
     'collect': 'collect',
     'watching': 'watching',
-    'excude me': 'excuseme',
+    'excuse me': 'excuseme',
+    'dunked on': 'dunkedon',
     'theme song': 'timeisnow',
     'undertaker': 'undertaker',
     'this house': 'notinthishouse'
@@ -25,41 +27,38 @@
   
   // Chat Output
   Calico.prototype.responses = {
-    'info': 'I am a Mumbtrilo bot.',
+    'info': 'I am a Mumbtrilo bot built by Oka.',
     'cena': "Who's champ?",
     'pranks': '<a href="https://www.youtube.com/watch?v=wRRsXxE1KVY">Prank Calls</a>',
     'theme': '<a href="https://www.youtube.com/watch?v=OaQ5jZANSe8">Theme Song</a>',
-    'john cena': '<a href="http://www.reddit.com/r/potatosalad">Potato Salad</a>',
-    'potato salad': '<a href="http://www.reddit.com/r/johncena">John Cena</a>'
+    'john cena': '<a href="http://www.reddit.com/r/potatosalad">John Cena</a>',
+    'potato salad': '<a href="http://www.reddit.com/r/johncena">Potato Salad</a>'
   };
   
   // True Commands
   Calico.prototype.commands = {
-    'stop': function (self) {
+    'stop': function (self, args) {
       piepan.Audio.Stop();
     },
-    'leave now': function (self) {
+    'leave now': function (self, args) {
       console.log('Calico was asked to leave.');
       piepan.Disconnect();
     },
-    'help': function (self) {
+    'help': function (self, args) {
       piepan.Self.Channel.Send('<b>do [COMMAND]</b> - Call literal commands. e.g., <i>do show +play</i>', false);
       piepan.Self.Channel.Send('<b>say [COMMAND]</b> - Print associated text. e.g., <i>say cena</i>', false);
       piepan.Self.Channel.Send('<b>play [COMMAND]</b> - Play associated audio clip. e.g., <i>play slam</i>', false);
     },
-    'set volume': function (self, lvl) {
-      var val = parseFloat(lvl, 10);
-      val = Math.max(0, Math.min(val, 10));
+    'set volume': function (self, args) {
+      var val = Math.max(0, Math.min(parseFloat(args[0], 10), 10)),
+          response = 'Volume: ' + Math.floor(val * 100) + '%';
       
       piepan.Audio.SetVolume(val);
-      
-      var response = 'Volume is now at ' + Math.floor(val * 100) + '%.';
       piepan.Self.Channel.Send(response, false);
     },
-    'show': function (self, command) {
-      var query = self.methodToHash[command];
-      
-      var response = 'Commands in [' + query + ']: ';
+    'show': function (self, args) {
+      var query = self.methodToHash[args[0]],
+          response = 'Commands in [' + query.toUpperCase() + ']: ';
       
       if (typeof self[query]  === 'object') {
         for (var prop in self[query]) {
@@ -82,7 +81,7 @@
   };
   
   Calico.prototype.roomSwitch = function (event) {
-    event.Channel.Send('Calico.js bot incoming! Type help for a list of basic commands, and do show +[COMMAND] for advanced commands.', false);
+    event.Channel.Send('Calico.js bot incoming! Type <b>help</b> for a list of basic commands, and <b>do show +[COMMAND]</b> for advanced commands.', false);
   };
   
   Calico.prototype.talkBack = function (request) {
@@ -110,9 +109,10 @@
   };
   
   Calico.prototype.issueCommand = function (command) {
-    var parts = command.split(' +');
-    if (this.commands[parts[0]]) {
-      this.commands[parts[0]](this, parts[1]);
+    var args = command.split(' +');
+        cmd = args.shift();
+    if (this.commands[cmd]) {
+      this.commands[cmd](this, args);
     }
   };
 
@@ -123,7 +123,7 @@
 
     var message = event.Message.toLowerCase();
     message = message.trim();
-    message = message.replace(/\s/g, ' ');
+    message = message.replace(/\s+/g, ' ');
     
     
     // Three main commands
@@ -140,7 +140,8 @@
     }
     
     // Help exception
-    if (message === 'help') {
+    if (message === 'help' ||
+        message === '?') {
       this.commands.help();
     }
   };
