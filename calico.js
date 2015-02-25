@@ -1,30 +1,47 @@
+// Calico.js
+// Mumble Bot built ontop of piepan
+// Colin 'Oka' Hall-Coates, 2015 MIT
+
+
 ;(function () {
   
+  // AudioClip Constructor
+  function AudioClip(directory, filename, extension) {
+    this.dir = directory;
+    this.file = filename;
+    this.ext = extension || 'mp3';
+  }
+  
+  // Main Constructor
   function Calico() {
     piepan.Audio.SetVolume(0.8);
   }
   
   // Directory and format
-  Calico.prototype.audioPrefix = 'audio/';
-  Calico.prototype.audioSuffix = '.mp3';
+  Calico.prototype.audioDir = 'audio';
 
   // Audio Output
   Calico.prototype.clips = {
-    'slam': 'slam',
-    'name': 'name',
-    'love': 'love',
-    'theme': 'theme',
-    'hello': 'hello',
-    'ready?': 'ready',
-    'champ?': 'whois',
-    'my life': 'mylife',
-    'collect': 'collect',
-    'watching': 'watching',
-    'excuse me': 'excuseme',
-    'dunked on': 'dunkedon',
-    'theme song': 'timeisnow',
-    'undertaker': 'undertaker',
-    'this house': 'notinthishouse'
+    // Cena
+    'slam': new AudioClip('cena', 'slam'),
+    'name': new AudioClip('cena', 'name'),
+    'love': new AudioClip('cena', 'love'),
+    'theme': new AudioClip('cena', 'theme'),
+    'ready?': new AudioClip('cena', 'ready'),
+    'champ?': new AudioClip('cena', 'whoischamp'),
+    'collect': new AudioClip('cena', 'collect'),
+    'watching': new AudioClip('cena', 'watching'),
+    'excuse me': new AudioClip('cena', 'excuseme'),
+    'undertaker': new AudioClip('cena', 'undertaker'),
+    'this house': new AudioClip('cena', 'notinthishouse'),
+    'theme song': new AudioClip('cena', 'timeisnow'),
+    
+    // Frank
+    
+    // Misc
+    'hello': new AudioClip('misc', 'hello'),
+    'my life': new AudioClip('misc', 'mylife'),
+    'dunked on': new AudioClip('misc', 'dunkedon'),
   };
   
   // Chat Output
@@ -127,12 +144,13 @@
       return;
     }
     
-    var dir = this.audioPrefix,
-        file = this.clips[clip],
-        ext = this.audioSuffix;
-    
+    var dir = this.clips[clip].dir,
+        file = this.clips[clip].file,
+        ext = this.clips[clip].ext,
+        path = this.audioDir + '/' + dir + '/' + file + '.' + ext;
+        
     piepan.Audio.Play({
-      filename: dir + file + ext
+      filename: path
     });
   };
   
