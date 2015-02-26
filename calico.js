@@ -5,6 +5,13 @@
 
 ;(function () {
   
+  // Array empty method
+  Array.prototype.empty = function () {
+    while (this.length > 0) {
+      this.pop();
+    }
+  };
+  
   // AudioClip Constructor
   function AudioClip(directory, filename, extension) {
     this.dir = directory;
@@ -14,34 +21,50 @@
   
   // Main Constructor
   function Calico() {
-    piepan.Audio.SetVolume(0.8);
+    piepan.Audio.SetVolume(0.5);
   }
   
-  // Directory and format
+  // Audio Directory
   Calico.prototype.audioDir = 'audio';
-
+  // Subsubdirs
+  var subdirs = ['cena', 'frank', 'misc'];
+  
+  Calico.prototype.queue = [];
+  
   // Audio Output
   Calico.prototype.clips = {
     // Cena
-    'slam': new AudioClip('cena', 'slam'),
-    'name': new AudioClip('cena', 'name'),
-    'love': new AudioClip('cena', 'love'),
-    'theme': new AudioClip('cena', 'theme'),
-    'ready?': new AudioClip('cena', 'ready'),
-    'champ?': new AudioClip('cena', 'whoischamp'),
-    'collect': new AudioClip('cena', 'collect'),
-    'watching': new AudioClip('cena', 'watching'),
-    'excuse me': new AudioClip('cena', 'excuseme'),
-    'undertaker': new AudioClip('cena', 'undertaker'),
-    'this house': new AudioClip('cena', 'notinthishouse'),
-    'theme song': new AudioClip('cena', 'timeisnow'),
+    'slam': new AudioClip(subdirs[0], 'slam'),
+    'name': new AudioClip(subdirs[0], 'name'),
+    'love': new AudioClip(subdirs[0], 'love'),
+    'theme': new AudioClip(subdirs[0], 'theme'),
+    'ready?': new AudioClip(subdirs[0], 'ready'),
+    'champ?': new AudioClip(subdirs[0], 'whoischamp'),
+    'collect': new AudioClip(subdirs[0], 'collect'),
+    'watching': new AudioClip(subdirs[0], 'watching'),
+    'excuse me': new AudioClip(subdirs[0], 'excuseme'),
+    'undertaker': new AudioClip(subdirs[0], 'undertaker'),
+    'this house': new AudioClip(subdirs[0], 'notinthishouse'),
+    'theme song': new AudioClip(subdirs[0], 'timeisnow'),
     
     // Frank
+    'ftp': new AudioClip(subdirs[1], 'ftp'),
+    'nyes': new AudioClip(subdirs[1], 'nyes'),
+    'books': new AudioClip(subdirs[1], 'books'),
+    'oh wow': new AudioClip(subdirs[1], 'ohwow'),
+    'nanda?': new AudioClip(subdirs[1], 'nanda'),
+    'wahaha': new AudioClip(subdirs[1], 'wahaha'),
+    'chin chin': new AudioClip(subdirs[1], 'chinchin'),
     
     // Misc
-    'hello': new AudioClip('misc', 'hello'),
-    'my life': new AudioClip('misc', 'mylife'),
-    'dunked on': new AudioClip('misc', 'dunkedon'),
+    'sawft': new AudioClip(subdirs[2], 'sawft'),
+    'hello': new AudioClip(subdirs[2], 'hello'),
+    'strong': new AudioClip(subdirs[2], 'strong'),
+    'what up': new AudioClip(subdirs[2], 'whatup'),
+    'my life': new AudioClip(subdirs[2], 'mylife'),
+    'dunked on': new AudioClip(subdirs[2], 'dunkedon'),
+    'weak stuff': new AudioClip(subdirs[2], 'weakstuff'),
+    'aint got five': new AudioClip(subdirs[2], 'aintgotfive')
   };
   
   // Chat Output
@@ -67,8 +90,11 @@
       piepan.Audio.SetVolume(val);
       piepan.Self.Channel.Send(response, false);
     },
+    'empty queue': function (self, event, args) {
+      self.queue.empty();
+    },
     
-    // Excess Chat
+    // Advanced Chat 
     'help': function (self, event, args) {
       piepan.Self.Channel.Send('<b>do [COMMAND]</b> - Call literal commands. e.g., <i>do show +play</i>', false);
       piepan.Self.Channel.Send('<b>say [COMMAND]</b> - Print associated text. e.g., <i>say cena</i>', false);
@@ -84,6 +110,16 @@
         }
         
         piepan.Self.Channel.Send(response, false);
+      }
+    },
+    'list queue': function (self, event, args) {
+      var output = 'Clips in queue: ';
+      if (self.queue.length > 0) {
+        self.queue.forEach(function (clip) {
+          output += '[' + clip + '] ';
+        });
+        
+        piepan.Self.Channel.Send(output, false);
       }
     },
     'echo': function (self, event, args) {
@@ -103,7 +139,11 @@
       piepan.Self.Move(event.Sender.Channel);
     },
     'get out': function (self, event, args) {
-      piepan.Self.Move(piepan.Channels['27']);
+      var room = args[0] || '27';
+      
+      if (piepan.Channels[room]) {
+        piepan.Self.Move(piepan.Channels[room]);
+      }
     },
     'leave now': function (self, event, args) {
       console.log('Calico was asked to leave.');
@@ -121,12 +161,12 @@
   // Event Handlers
   Calico.prototype.connected = function (event) {
     console.log('Calico is purring.');
+    piepan.Self.SetComment('I am a Calico Bot. Type <b>help</b> for a list of basic commands, and <b>do show +[COMMAND]</b> for advanced commands.');
+    piepan.Self.Move(piepan.Channels['3']);
   };
   
   Calico.prototype.roomSwitch = function (event) {
-    if (event.Channel.ID !== 27) {
-      event.Channel.Send('Calico.js bot incoming! Type <b>help</b> for a list of basic commands, and <b>do show +[COMMAND]</b> for advanced commands.', false);
-    }
+    
   };
   
   Calico.prototype.talkBack = function (request) {
@@ -139,18 +179,41 @@
     piepan.Self.Channel.Send(response, false);
   };
   
+  // Play next in queue if it exists
+  Calico.prototype.playNext = function () {
+    var next;
+    
+    if (this.queue.length > 0) {
+      next = this.queue.shift();
+      this.playAudio(next);
+    }
+  };
+  
   Calico.prototype.playAudio = function (clip) {
-    if (!this.clips[clip] || piepan.Audio.IsPlaying()) {
+    // Ignore non-existant clips
+    if (!this.clips[clip]) {
+      return;
+    }
+    
+    // Push clips onto the queue
+    if (piepan.Audio.IsPlaying()) {
+      if (this.queue.length < 10) {
+        this.queue.push(clip);
+      }
       return;
     }
     
     var dir = this.clips[clip].dir,
         file = this.clips[clip].file,
         ext = this.clips[clip].ext,
-        path = this.audioDir + '/' + dir + '/' + file + '.' + ext;
+        path = this.audioDir + '/' + dir + '/' + file + '.' + ext,
+        that = this;
         
     piepan.Audio.Play({
-      filename: path
+      filename: path,
+      callback: function () {
+        that.playNext();
+      }
     });
   };
   
@@ -169,29 +232,33 @@
     }
 
     var message = event.Message.toLowerCase();
-    message = message.trim();
-    message = message.replace(/\s+/g, ' '),
-    resolved = false;
+        message = message.replace(/\s+/g, ' ');
     
+    var cmds = message.split(';'),
+        that = this;
     
-    // Three main commands
-    if (message.substring(0, 2) === 'do') {
-      this.issueCommand(event, message.slice(3));
-    }
-    
-    if (message.substring(0, 4) === 'play') {
-      this.playAudio(message.slice(5));
-    }
-    
-    if (message.substring(0, 3) === 'say') {
-      this.talkBack(message.slice(4));
-    }
-    
-    // Help exception
-    if (message === 'help' ||
-        message === '?') {
-      this.commands.help();
-    }
+    cmds.forEach(function (cmd) {
+      cmd = cmd.trim();
+      
+      // Three main commands
+      if (cmd.substring(0, 2) === 'do') {
+        that.issueCommand(event, cmd.slice(3));
+      }
+      
+      if (cmd.substring(0, 4) === 'play') {
+        that.playAudio(cmd.slice(5));
+      }
+      
+      if (cmd.substring(0, 3) === 'say') {
+        that.talkBack(cmd.slice(4));
+      }
+      
+      // Help exception
+      if (cmd === 'help' ||
+          cmd === '?') {
+        that.commands.help();
+      }
+    });
   };
 
   // Main Object
