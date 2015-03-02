@@ -57,11 +57,13 @@
     'chin chin': new AudioClip(subdirs[1], 'chinchin'),
     
     // Misc
+    'hate': new AudioClip(subdirs[2], 'getin'),
     'sawft': new AudioClip(subdirs[2], 'sawft'),
     'hello': new AudioClip(subdirs[2], 'hello'),
     'strong': new AudioClip(subdirs[2], 'strong'),
     'what up': new AudioClip(subdirs[2], 'whatup'),
     'my life': new AudioClip(subdirs[2], 'mylife'),
+    'awesome': new AudioClip(subdirs[2], 'awesome'),
     'dunked on': new AudioClip(subdirs[2], 'dunkedon'),
     'weak stuff': new AudioClip(subdirs[2], 'weakstuff'),
     'aint got five': new AudioClip(subdirs[2], 'aintgotfive')
@@ -91,7 +93,18 @@
       piepan.Self.Channel.Send(response, false);
     },
     'empty queue': function (self, event, args) {
-      self.queue.empty();
+      var numClips = self.queue.length,
+            clipString = 'clips';
+            
+      if (numClips > 0) {
+        self.queue.empty();
+        
+        if (numClips === 1) {
+          clipString = 'clip';
+        }
+        
+        piepan.Self.Channel.Send('Cleared ' + numClips + ' ' + clipString + ' from the queue.', false);
+      }
     },
     
     // Advanced Chat 
@@ -101,10 +114,11 @@
       piepan.Self.Channel.Send('<b>play [COMMAND]</b> - Play associated audio clip. e.g., <i>play slam</i>', false);
     },
     'show': function (self, event, args) {
-      var query = self.methodToHash[args[0]],
-          response = 'Commands in [' + args[0].toUpperCase() + ']: ';
+      var query = self.methodToHash[args[0]];
       
       if (typeof self[query]  === 'object') {
+        var response = 'Commands in [' + args[0].toUpperCase() + ']: ';
+        
         for (var prop in self[query]) {
           response += '[' + prop + '] ';
         }
