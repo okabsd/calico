@@ -1,4 +1,6 @@
 audio/
 bin/
 calico.sh
+calico-lua.sh
 piepan
+uploader.php
