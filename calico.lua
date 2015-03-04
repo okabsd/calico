@@ -12,24 +12,29 @@ con = assert ( db:connect(DB_NAME, DB_USER, DB_PASS) )
 
 -- Removes whitespace on the edges of a string
 function trim (s)
-    return s:match ('^%s*(.-)%s*$')
+  return s:match ('^%s*(.-)%s*$')
 end
 
 -- Compacts multiple whitespace characters
 function compact (s)
-    return s:gsub ('%s+', ' ')
+  return s:gsub ('%s+', ' ')
 end
 
 -- Splits a string into an array-like table on a delimiter
 function split (s, d)
-    local t = {}
-    d = d or '%s'
-    
-    for str in s:gmatch ("([^"..d.."]+)") do
-        t[#t+1] = str
-    end
-    
-    return t
+  local t = {}
+  d = d or '%s'
+  
+  for str in s:gmatch ("([^"..d.."]+)") do
+      t[#t+1] = str
+  end
+  
+  return t
+end
+
+-- String interpolation using table subs
+function interp (s, tab)
+  return (s:gsub ('($%b{})',function (w) return tab[w:sub (3, -2)] or w end))
 end
 
 -- Limits a number to boundaries
@@ -67,7 +72,7 @@ end
 
 Calico.commands['volume'] = function (event, args)
   local vol = tonumber (args[1])
-  local setting, percentage = true, nil
+  local setting, percentage = true
 
   if not vol then
     vol = piepan.Audio.Volume ()
@@ -80,26 +85,29 @@ Calico.commands['volume'] = function (event, args)
   end
   
   percentage = math.floor (vol * 100)
-  piepan.Self.Channel.Send ('Volume: '..percentage..'%', false)
+  piepan.Self.Channel.Send (interp ('Volume: ${p}%', {p = percentage}), false)
 end
 
-Calico.commands['find'] = function (event, args)
-  local request, response
-  local query = args[1]
+Calico.commands['find'] = function (event, args, offset)
+  local request, response, query, found
+  local search = args[1]
+  local offset = offset or 0
   local dbtable = con:escape (Calico.sound_table)
-  local found = false
+  local qsubs = {t = dbtable, o = offset}
   local message = [[
   <table border="1" cellpadding="5"><thead><tr>
   <th width="50%">NAME</th>
   <th width="50%">CMD</th>
   </tr></thead>
   ]]
-  
-  if not query then
-    query = 'SELECT name, cmd FROM '..dbtable..' ORDER BY name ASC'
+
+  if not search then
+    query = 'SELECT name, cmd FROM ${t} ORDER BY name ASC LIMIT 20 OFFSET ${o}'
+    query = interp (query, qsubs)
   else
-    query = con:escape (query)
-    query = 'SELECT name, cmd FROM '..dbtable..' WHERE name LIKE "%'..query..'%"'..' ORDER BY name ASC'
+    query = 'SELECT name, cmd FROM ${t} WHERE name LIKE "%${s}%" ORDER BY name ASC LIMIT 20 OFFSET ${o}'
+    qsubs['s'] = con:escape (search)
+    query = interp (query, qsubs)
   end
   
   request = assert ( con:execute (query) )
@@ -123,29 +131,24 @@ Calico.commands['find'] = function (event, args)
   if found then
     message = message..'</table>'
     event.Sender.Send (message)
+    Calico.commands['find'] (event, args, offset + 20)
   else
-    event.Sender.Send ('No results.')
+    event.Sender.Send ('End of results.')
   end
-  
 end
 
 -- Queue related
 Calico.commands['empty queue'] = function (event, args)
-  local count = #Calico.queue
+  local count, grammar, response = #Calico.queue
   
   if count == 0 then
     piepan.Self.Channel.Send ('Queue is already empty.', false)
-    return
+  else 
+    empty (Calico.queue)  
+    grammar = (count == 1) and 'entry' or 'entries'
+    response = interp ('Cleared ${c} ${g} from the queue.', {c = count, g = grammar})
+    piepan.Self.Channel.Send (response, false)
   end
-  
-  local grammar = 'entries'
-  
-  if count == 1 then
-    grammar = 'entry'
-  end
-  
-  empty (Calico.queue)
-  piepan.Self.Channel.Send ('Cleared '..count..' '..grammar..' from the queue.', false)
 end
 
 Calico.commands['list queue'] = function (event, args)
@@ -156,7 +159,7 @@ Calico.commands['list queue'] = function (event, args)
   
   local response = 'Queue:'
   
-  for k, v in ipairs (Calico.queue) do
+  for _, v in ipairs (Calico.queue) do
     response = response..' ['..v..']'
   end
   
@@ -179,7 +182,7 @@ end
 Calico.commands['get out'] = function (event, args)
   local room = tonumber (args[1]) or 27
   
-  piepan.Self.Move(piepan.Channels[room])
+  piepan.Self.Move (piepan.Channels[room])
 end
 
 Calico.commands['leave now'] = function (event, args)
@@ -213,8 +216,8 @@ Calico.commands['help'] = function (event, args)
 end
 
 Calico.commands['echo'] = function (event, args)
-  for k, v in ipairs (args) do
-    piepan.Self.Channel.Send(v, false)
+  for _, v in ipairs (args) do
+    piepan.Self.Channel.Send (v, false)
   end
 end
 
@@ -240,7 +243,8 @@ Calico.talkBack = function (query)
   local request, response
   local dbtable = con:escape (Calico.chat_table)
   local cmd = con:escape (query)
-  local query = 'SELECT response FROM '..dbtable..' WHERE cmd = "'..cmd..'"'
+  local qsubs = {t = dbtable, c = cmd}
+  local query = interp ('SELECT response FROM ${t} WHERE cmd = "${c}"', qsubs)
   
   request = assert ( con:execute (query) )
   response = request:fetch ({})
@@ -256,7 +260,8 @@ Calico.getFileInfo = function (clip)
   local assoc = {}
   local dbtable = con:escape (Calico.sound_table)
   local cmd = con:escape (clip)
-  local query = 'SELECT dir, filename, ext FROM '..dbtable..' WHERE cmd = "'..cmd..'"'
+  local qsubs = {t = dbtable, c = cmd}
+  local query = interp ('SELECT dir, filename, ext FROM ${t} WHERE cmd = "${c}"', qsubs)
   
   request = assert ( con:execute (query) )
   response = request:fetch ({})
@@ -281,18 +286,21 @@ Calico.playAudio = function (clip)
     return
   end
   
-  local fileInfo, fpath = Calico.getFileInfo (clip), nil
+  local fileInfo, fpath = Calico.getFileInfo (clip)
   
   if not fileInfo then
     Calico.playNext ()
     return
   end
   
-  fpath = Calico.audio_directory .. '/'
-  fpath = fpath .. fileInfo['dir'] .. '/'
-  fpath = fpath .. fileInfo['filename'] .. '.'
-  fpath = fpath .. fileInfo['ext']
+  local fsubs = {
+    d  = Calico.audio_directory,
+    s = fileInfo['dir'],
+    f  = fileInfo['filename'],
+    e  = fileInfo['ext']
+  }
   
+  fpath = interp ('${d}/${s}/${f}.${e}', fsubs)
   piepan.Audio.Play ( { filename = fpath, callback = Calico.playNext } )
 end
 
@@ -322,7 +330,7 @@ Calico.delegateMessage = function (event)
     
   local cmds = split (msg, ';')
   
-  for k, v in ipairs (cmds) do
+  for _, v in ipairs (cmds) do
     v = trim (v)
     
     if v:sub (1, 2) == 'do' then
