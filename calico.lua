@@ -20,17 +20,13 @@ function compact (s)
     return s:gsub ('%s+', ' ')
 end
 
--- Splits an array-like table on a delimiter
+-- Splits a string into an array-like table on a delimiter
 function split (s, d)
-    local t, i = {}, 1
-    
-    if d == nil then
-        d = '%s'
-    end
+    local t = {}
+    d = d or '%s'
     
     for str in s:gmatch ("([^"..d.."]+)") do
-        t[i] = str
-        i = i + 1
+        t[#t+1] = str
     end
     
     return t
@@ -41,10 +37,10 @@ function bounds (l, n, h)
   return math.max (l, math.min (n, h))
 end
 
--- Empties an array-like table in place
-function empty (a)
-  for k in ipairs (a) do
-    a[k] = nil
+-- Empties a table in place
+function empty (t)
+  for k in ipairs (t) do
+    t[k] = nil
   end
 end
 
@@ -56,11 +52,11 @@ Calico.audio_directory = 'audio'
 Calico.sound_table = 'sound_bites'
 Calico.chat_table = 'chat_responses'
 
----- Commands & Queue
+---- Queue
+Calico.queue = {}
 
--- Commands
+---- Commands
 Calico.commands = {}
-
 
 -- Audio Related
 Calico.commands['stop'] = function (event, args)
@@ -87,23 +83,140 @@ Calico.commands['volume'] = function (event, args)
   piepan.Self.Channel.Send ('Volume: '..percentage..'%', false)
 end
 
+Calico.commands['find'] = function (event, args)
+  local request, response
+  local query = args[1]
+  local dbtable = con:escape (Calico.sound_table)
+  local found = false
+  local message = [[
+  <table border="1" cellpadding="5"><thead><tr>
+  <th width="50%">NAME</th>
+  <th width="50%">CMD</th>
+  </tr></thead>
+  ]]
+  
+  if not query then
+    query = 'SELECT name, cmd FROM '..dbtable
+  else
+    query = con:escape (query)
+    query = 'SELECT name, cmd FROM '..dbtable..' WHERE name LIKE "%'..query..'%"'
+  end
+  
+  request = assert ( con:execute (query) )
+  response = true
+  
+  while response do
+    response = request:fetch ({})
+    
+    if response then
+      found = true
+      
+      local name, cmd
+      name = response[1]
+      cmd = response[2]
+      
+      message = message..'<tr><td width="50%" align="center">'..name..'</td>'
+      message = message..'<td width="50%" align="center">'..cmd..'</td></tr>'
+    end
+  end
+  
+  if found then
+    message = message..'</table>'
+    event.Sender.Send (message)
+  else
+    event.Sender.Send ('No results.')
+  end
+  
+end
+
 -- Queue related
 Calico.commands['empty queue'] = function (event, args)
+  local count = #Calico.queue
+  
+  if count == 0 then
+    piepan.Self.Channel.Send ('Queue is already empty.', false)
+    return
+  end
+  
+  local grammar = 'entries'
+  
+  if count == 1 then
+    grammar = 'entry'
+  end
+  
   empty (Calico.queue)
+  piepan.Self.Channel.Send ('Cleared '..count..' '..grammar..' from the queue.', false)
 end
 
 Calico.commands['list queue'] = function (event, args)
-  -- todo
+  if #Calico.queue == 0 then
+    piepan.Self.Channel.Send ('Queue is empty.', false)
+    return
+  end
+  
+  local response = 'Queue:'
+  
+  for k, v in ipairs (Calico.queue) do
+    response = response..' ['..v..']'
+  end
+  
+  piepan.Self.Channel.Send (response, false)
 end
 
 -- Movement related
+Calico.commands['move here'] = function (event, args)
+  local cur, des
+  cur = piepan.Self.Channel.ID
+  des = event.Sender.Channel.ID
+  
+  if cur == des then
+    return
+  else
+    piepan.Self.Move (piepan.Channels[des])
+  end
+end
+
+Calico.commands['get out'] = function (event, args)
+  local room = tonumber (args[1]) or 27
+  
+  piepan.Self.Move(piepan.Channels[room])
+end
+
 Calico.commands['leave now'] = function (event, args)
   print ('Calico was asked to wait outside.')
   piepan.Disconnect ()
 end
 
--- Queue
-Calico.queue = {}
+-- Chat related
+Calico.commands['help'] = function (event, args)
+  local sender = event.Sender
+  local help = [[
+  Help has arrived!
+  <br /><br />
+  <b>do [COMMAND]</b> - Call literal commands. e.g., <i>do stop</i>
+  <br /><br />
+  Some <b>do</b> commands take extra parameters.
+  These can be passed in by prefixing a <b>+</b> onto
+  the parameter, following the command. e.g., do volume +0.5
+  <br /><hr /><br />
+  <b>say [COMMAND]</b> - Print associated text. e.g., <i>say hello</i>
+  <br /><hr /><br />
+  <b>play [COMMAND]</b> - Play associated audio clip. e.g., <i>play theme</i>
+  <br /><hr /><br />
+  Multiple commands can be sent in one message
+  by splitting them up with a semi-colon ( <b>;</b> )<br />
+  e.g., play this; say that; do something
+  <br />
+  ]]
+  
+  sender.Send (help)
+end
+
+Calico.commands['echo'] = function (event, args)
+  for k, v in ipairs (args) do
+    piepan.Self.Channel.Send(v, false)
+  end
+end
 
 ---- Core funcionality
 
@@ -127,8 +240,9 @@ Calico.talkBack = function (query)
   local request, response
   local dbtable = con:escape (Calico.chat_table)
   local cmd = con:escape (query)
+  local query = 'SELECT response FROM '..dbtable..' WHERE cmd = "'..cmd..'"'
   
-  request = assert ( con:execute ('SELECT response FROM '..dbtable..' WHERE cmd = "'..cmd..'"') )
+  request = assert ( con:execute (query) )
   response = request:fetch ({})
   
   if response then
@@ -142,8 +256,9 @@ Calico.getFileInfo = function (clip)
   local assoc = {}
   local dbtable = con:escape (Calico.sound_table)
   local cmd = con:escape (clip)
+  local query = 'SELECT dir, filename, ext FROM '..dbtable..' WHERE cmd = "'..cmd..'"'
   
-  request = assert ( con:execute ('SELECT dir, filename, ext FROM '..dbtable..' WHERE cmd = "'..cmd..'"') )
+  request = assert ( con:execute (query) )
   response = request:fetch ({})
   
   if response then
@@ -160,7 +275,7 @@ end
 -- Play Audio
 Calico.playAudio = function (clip)
   if piepan.Audio.IsPlaying () then
-    if table.getn (Calico.queue) < 10 then
+    if #Calico.queue < 10 then
       table.insert (Calico.queue, clip)
     end
     return
@@ -182,7 +297,7 @@ Calico.playAudio = function (clip)
 end
 
 Calico.playNext = function ()
-  local count = table.getn (Calico.queue)
+  local count = #Calico.queue
   local nextInLine
   
   if count > 0 then
@@ -198,6 +313,10 @@ Splits message into multiparts
 Issue appropriate low level command per part
 --]]
 Calico.delegateMessage = function (event)
+  if event.Sender == nil then
+    return
+  end
+  
   local msg = event.Message:lower ()
   msg = compact (trim (msg))
     
@@ -218,13 +337,17 @@ Calico.delegateMessage = function (event)
       Calico.playAudio (v:sub (6))
     end
     
-    -- Add help exceptions
+    -- Help exceptions
+    if v == 'help' or v == '?' then
+      Calico.commands['help'] (event)
+    end
   end
 end
 
 Calico.connected = function (event)
   print ('Calico is purring')
   piepan.Audio.SetVolume (0.5)
+  piepan.Self.SetComment('I\'m a bot! Type <b>?</b> for help on how to use me.')
   piepan.Self.Move (piepan.Channels[3])
 end
 
