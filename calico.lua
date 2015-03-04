@@ -96,10 +96,10 @@ Calico.commands['find'] = function (event, args)
   ]]
   
   if not query then
-    query = 'SELECT name, cmd FROM '..dbtable
+    query = 'SELECT name, cmd FROM '..dbtable..' ORDER BY name ASC'
   else
     query = con:escape (query)
-    query = 'SELECT name, cmd FROM '..dbtable..' WHERE name LIKE "%'..query..'%"'
+    query = 'SELECT name, cmd FROM '..dbtable..' WHERE name LIKE "%'..query..'%"'..' ORDER BY name ASC'
   end
   
   request = assert ( con:execute (query) )
