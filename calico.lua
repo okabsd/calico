@@ -33,8 +33,8 @@ function split (s, d)
 end
 
 -- String interpolation using table subs
-function interp (s, tab)
-  return (s:gsub ('($%b{})',function (w) return tab[w:sub (3, -2)] or w end))
+function interp (s, t)
+  return (s:gsub ('($%b{})', function (w) return t[w:sub (3, -2)] or w end))
 end
 
 -- Limits a number to boundaries
@@ -84,8 +84,8 @@ Calico.commands['volume'] = function (event, args)
     piepan.Audio.SetVolume (vol)
   end
   
-  percentage = math.floor (vol * 100)
-  piepan.Self.Channel.Send (interp ('Volume: ${p}%', {p = percentage}), false)
+  percentage = interp ('Volume: ${p}%', {p = math.floor (vol * 100)})
+  piepan.Self.Channel.Send (percentage, false)
 end
 
 Calico.commands['find'] = function (event, args, offset)
@@ -172,9 +172,7 @@ Calico.commands['move here'] = function (event, args)
   cur = piepan.Self.Channel.ID
   des = event.Sender.Channel.ID
   
-  if cur == des then
-    return
-  else
+  if cur ~= des then
     piepan.Self.Move (piepan.Channels[des])
   end
 end
@@ -182,7 +180,11 @@ end
 Calico.commands['get out'] = function (event, args)
   local room = tonumber (args[1]) or 27
   
-  piepan.Self.Move (piepan.Channels[room])
+  if piepan.Channels[room] then
+    piepan.Self.Move (piepan.Channels[room])
+  else
+    event.Sender.Send ('Channel does not exist.')
+  end
 end
 
 Calico.commands['leave now'] = function (event, args)
