@@ -217,6 +217,24 @@ Calico.commands['help'] = function (event, args)
   sender.Send (help)
 end
 
+Calico.commands['show'] = function (event, args)
+  local cmds = {}
+  local sender = event.Sender
+  local response = 'Commands:'
+  
+  for k in pairs (Calico.commands) do
+    cmds[#cmds+1] = k
+  end
+  
+  table.sort (cmds)
+  
+  for _, v in ipairs (cmds) do
+    response = response..' ['..v..']'
+  end
+  
+  sender.Send (response)
+end
+
 Calico.commands['echo'] = function (event, args)
   for _, v in ipairs (args) do
     piepan.Self.Channel.Send (v, false)
