@@ -1,12 +1,13 @@
 -- Calico.lua
 -- Experimental Lua & LuaSQL version
+-- Lua 5.1.5
 
 ---- Global Goodies
 
 require 'bin/conf'
 driver = require 'luasql.mysql'
 db = driver.mysql ()
-con = assert ( db:connect(DB_NAME, DB_USER, DB_PASS) )
+con = nil
 
 ---- Helper Functions
 
@@ -53,10 +54,6 @@ end
 
 Calico = {}
 
-Calico.audio_directory = 'audio'
-Calico.sound_table = 'sound_bites'
-Calico.chat_table = 'chat_responses'
-
 ---- Queue
 Calico.queue = {}
 
@@ -92,7 +89,7 @@ Calico.commands['find'] = function (event, args, offset)
   local request, response, query, found
   local search = args[1]
   local offset = offset or 0
-  local dbtable = con:escape (Calico.sound_table)
+  local dbtable = con:escape (TABLE_AUDIO)
   local qsubs = {t = dbtable, o = offset}
   local message = [[
   <table border="1" cellpadding="5"><thead><tr>
@@ -152,12 +149,15 @@ Calico.commands['empty queue'] = function (event, args)
 end
 
 Calico.commands['list queue'] = function (event, args)
-  if #Calico.queue == 0 then
+  local count = #Calico.queue
+  
+  if count == 0 then
     piepan.Self.Channel.Send ('Queue is empty.', false)
     return
   end
   
-  local response = 'Queue:'
+  local text = (count == 1) and 'entry' or 'entries'
+  local response = interp ('Queue has ${n} ${t}:', {n = count, t = text})
   
   for _, v in ipairs (Calico.queue) do
     response = response..' ['..v..']'
@@ -178,13 +178,20 @@ Calico.commands['move here'] = function (event, args)
 end
 
 Calico.commands['get out'] = function (event, args)
-  local room = tonumber (args[1]) or 27
+  local room = tonumber (args[1] or AFK_ID)
   
-  if piepan.Channels[room] then
+  if room and piepan.Channels[room] then
     piepan.Self.Move (piepan.Channels[room])
   else
     event.Sender.Send ('Channel does not exist.')
   end
+end
+
+Calico.commands['get id'] = function (event, args)
+  local sender = event.Sender
+  local id = sender.Channel.ID
+  
+  sender.Send (interp ('You are in channel ${c}.', {c = id}))
 end
 
 Calico.commands['leave now'] = function (event, args)
@@ -211,6 +218,9 @@ Calico.commands['help'] = function (event, args)
   Multiple commands can be sent in one message
   by splitting them up with a semi-colon ( <b>;</b> )<br />
   e.g., play this; say that; do something
+  <br /><hr /><br />
+  If you are getting no responses from the bot, first try the command 
+  <b>do reconnect</b>. This will attempt to restore the database connection.
   <br />
   ]]
   
@@ -241,6 +251,22 @@ Calico.commands['echo'] = function (event, args)
   end
 end
 
+-- Database related
+
+Calico.commands['reconnect'] = function (event, args)
+  if con then
+    con:close()
+    con = nil
+  end
+  
+  con = assert ( db:connect(DB_NAME, DB_USER, DB_PASS) )
+  
+  if con and event then
+    print ('Calico has found the ball of yarn.')
+    event.Sender.Send ('Database connection back online.')
+  end
+end
+
 ---- Core funcionality
 
 -- Issue Command
@@ -261,7 +287,7 @@ end
 -- Talk Back
 Calico.talkBack = function (query)
   local request, response
-  local dbtable = con:escape (Calico.chat_table)
+  local dbtable = con:escape (TABLE_TEXT)
   local cmd = con:escape (query)
   local qsubs = {t = dbtable, c = cmd}
   local query = interp ('SELECT response FROM ${t} WHERE cmd = "${c}"', qsubs)
@@ -278,7 +304,7 @@ end
 Calico.getFileInfo = function (clip)
   local request, response
   local assoc = {}
-  local dbtable = con:escape (Calico.sound_table)
+  local dbtable = con:escape (TABLE_AUDIO)
   local cmd = con:escape (clip)
   local qsubs = {t = dbtable, c = cmd}
   local query = interp ('SELECT dir, filename, ext FROM ${t} WHERE cmd = "${c}"', qsubs)
@@ -314,10 +340,10 @@ Calico.playAudio = function (clip)
   end
   
   local fsubs = {
-    d  = Calico.audio_directory,
+    d = AUDIO_DIR,
     s = fileInfo['dir'],
-    f  = fileInfo['filename'],
-    e  = fileInfo['ext']
+    f = fileInfo['filename'],
+    e = fileInfo['ext']
   }
   
   fpath = interp ('${d}/${s}/${f}.${e}', fsubs)
@@ -361,21 +387,23 @@ Calico.delegateMessage = function (event)
       Calico.talkBack (v:sub (5))
     end
     
-    if v:sub (1, 4) == 'play' then
+    if v:sub (1, 4) == 'play' or
+       v:sub (1, 4) == 'okay' then
       Calico.playAudio (v:sub (6))
     end
     
     -- Help exceptions
-    if v == 'help' or v == '?' then
+    if v == '?' then
       Calico.commands['help'] (event)
     end
   end
 end
 
 Calico.connected = function (event)
-  print ('Calico is purring')
+  print ('Calico is purring.')
+  Calico.commands.reconnect ()
   piepan.Audio.SetVolume (0.5)
-  piepan.Self.SetComment('I\'m a bot! Type <b>?</b> for help on how to use me.')
+  piepan.Self.SetComment ('I\'m a bot! Type <b>?</b> for help on how to use me.')
   piepan.Self.Move (piepan.Channels[3])
 end
 
