@@ -129,7 +129,7 @@ This repository contains a directory named `extra`, containing miscellaneous scr
 $ extra/watchdog.lua ./calico.sh
 ```
 
-The `CalicoUploader.php` script used for uploading audio files to a web server. Uses [PDO](http://php.net/manual/en/book.pdo.php) to connect to a database. To use it, `bin/conf.php` should contain the following variables:
+The `uploader.php` script used for uploading audio files to a web server. Uses [PDO](http://php.net/manual/en/book.pdo.php) to connect to a database. To use it, `bin/conf.php` should contain the following variables:
 
 * `$DB_NAME` - Database driver, name, hostname, port, etc. (see: PDO docs)
 * `$DB_USER` - Database user name.
