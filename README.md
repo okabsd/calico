@@ -121,7 +121,15 @@ These are special characters used to break commands into parts, and are currentl
 
 ## Miscellaneous
 
-This repository also contains a `CalicoUploader.php` script used for uploading audio files to a web server. Uses [PDO](http://php.net/manual/en/book.pdo.php) to connect to a database. To use it, `bin/conf.php` should contain the following variables:
+This repository contains a directory named `extra`, containing miscellaneous scripts.
+
+`watchdog.lua` is an incredibly simple wrapper for continuously re-excuting the given command, until a SIGINT(2) is received. It is in no way fool proof.
+
+```shell
+$ extra/watchdog.lua ./calico.sh
+```
+
+The `CalicoUploader.php` script used for uploading audio files to a web server. Uses [PDO](http://php.net/manual/en/book.pdo.php) to connect to a database. To use it, `bin/conf.php` should contain the following variables:
 
 * `$DB_NAME` - Database driver, name, hostname, port, etc. (see: PDO docs)
 * `$DB_USER` - Database user name.
